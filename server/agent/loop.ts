@@ -77,6 +77,7 @@ async function toolLoop(t: TurnInput, vfs: Vfs, messages: Anthropic.MessageParam
   for (let step = 0; step < maxSteps; step++) {
     let stepText = "";
     const res = await t.driver.next(messages, (d) => {
+      if (!stepText && text) t.emit({ type: "text", delta: "\n\n" }); // separate text from earlier steps
       stepText += d;
       t.emit({ type: "text", delta: d });
     });
