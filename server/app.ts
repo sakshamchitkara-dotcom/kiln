@@ -6,7 +6,7 @@ import { streamSSE } from "hono/streaming";
 import { strToU8, zipSync } from "fflate";
 import { ClaudeDriver } from "./agent/claude.ts";
 import { runTurn, type Driver } from "./agent/loop.ts";
-import { ScriptedDriver } from "./agent/scripted.ts";
+import { ScriptedDriver, extractName } from "./agent/scripted.ts";
 import type { AgentEvent } from "./agent/tools.ts";
 import { buildProject, type BuildResult } from "./build.ts";
 import { Store } from "./db.ts";
@@ -69,7 +69,8 @@ export function createApp(cfg: AppConfig) {
     const body = await c.req.json().catch(() => ({}));
     const t = body.template ? TEMPLATES[body.template] : undefined;
     if (body.template && !t) return c.json({ error: "unknown template" }, 400);
-    const name = String(body.name ?? t?.defaultName ?? "Untitled site").slice(0, 80);
+    const fromPrompt = typeof body.prompt === "string" ? extractName(body.prompt) : undefined;
+    const name = String(body.name ?? fromPrompt ?? t?.defaultName ?? "Untitled site").slice(0, 80);
     const project = store.createProject(name);
     const files = t ? t.build({ name, accent: t.accent }) : BASE_FILES;
     await commitVersion(project.id, files, t ? `Started from the ${t.label.toLowerCase()} template` : "Blank project");
