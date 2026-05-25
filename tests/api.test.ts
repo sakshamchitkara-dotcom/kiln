@@ -29,7 +29,9 @@ describe("HTTP API (scripted mode)", { timeout: 30_000 }, () => {
     const preview = await app.request(`/preview/${p.id}/2/`);
     expect(preview.status).toBe(200);
     expect(preview.headers.get("content-security-policy")).toContain("sandbox");
-    expect(await preview.text()).toContain("<title>Crumb</title>");
+    const html = await preview.text();
+    expect(html).toContain("<title>Crumb</title>");
+    expect(html).toContain('kiln:"runtime-error"'); // error bridge injected
 
     await chat(p.id, "make it green");
     const diff = await (await app.request(`/api/projects/${p.id}/versions/3/diff`)).json();

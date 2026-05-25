@@ -15,6 +15,12 @@ import { TEMPLATES } from "./templates/index.ts";
 import { restoreVersion, versionDiff } from "./versions.ts";
 import { Vfs, VfsError, type Files } from "./vfs.ts";
 
+// Injected into every preview page: reports uncaught errors to the Kiln window
+// so the user can hand them to the model. Only messages cross the sandbox.
+const ERROR_BRIDGE = `<script>(function(){function send(m){try{parent.postMessage({kiln:"runtime-error",message:String(m).slice(0,2000)},"*")}catch(_){}}
+addEventListener("error",function(e){send(e.message+(e.filename?" ("+e.filename.split("/").pop()+":"+e.lineno+")":""))});
+addEventListener("unhandledrejection",function(e){send(e.reason&&e.reason.message||e.reason)});})();</script>`;
+
 export interface AppConfig {
   dataDir: string;
   scripted: boolean;
@@ -196,7 +202,8 @@ export function createApp(cfg: AppConfig) {
     if (!file.startsWith(root + path.sep)) return c.notFound();
     const data = await fs.readFile(file).catch(() => null);
     if (!data) return c.text("This version has no preview. Its build failed.", 404);
-    return c.body(data, 200, {
+    const body = file.endsWith(".html") ? data.toString("utf8").replace("<head>", `<head>${ERROR_BRIDGE}`) : data;
+    return c.body(body, 200, {
       "Content-Type": MIME[path.extname(file)] ?? "application/octet-stream",
       "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups allow-modals",
       "Access-Control-Allow-Origin": "*",
