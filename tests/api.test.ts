@@ -71,3 +71,15 @@ describe("project naming", () => {
     expect(p.name).toBe("Field Notes");
   });
 });
+
+describe("startup", () => {
+  it("sweeps staging dirs left by an interrupted build", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "kiln-sweep-"));
+    const stale = path.join(dir, "previews", "p1", "staging-abc");
+    await fs.mkdir(stale, { recursive: true });
+    await fs.mkdir(path.join(dir, "previews", "p1", "3"), { recursive: true });
+    createApp({ dataDir: dir, scripted: true, model: "scripted" });
+    expect(await fs.readdir(path.join(dir, "previews", "p1"))).toEqual(["3"]);
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+});
