@@ -11,10 +11,28 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 const NODE_MODULES = path.join(REPO, "node_modules");
 const WORKER = path.join(HERE, "build-worker.mjs");
+const TSC = path.join(NODE_MODULES, "typescript", "bin", "tsc");
 const TMP = realpathSync(os.tmpdir());
 const MAX_LOG = 8_000;
 
-export interface BuildResult { ok: boolean; log: string; ms: number }
+export interface BuildResult {
+  ok: boolean;
+  log: string;
+  ms: number;
+  /** tsc diagnostics for a build that bundled fine. Vite strips types, so these don't block the preview. */
+  typeErrors?: string;
+}
+
+// Kiln owns this tsconfig (the VFS refuses tsconfig.json). No resolveJsonModule
+// or allowJs, so tsc only ever opens .ts/.tsx/.d.ts files.
+const TSCONFIG = JSON.stringify({
+  compilerOptions: {
+    target: "ES2022", module: "ESNext", moduleResolution: "bundler", jsx: "react-jsx",
+    strict: true, noEmit: true, skipLibCheck: true, isolatedModules: true,
+    lib: ["ES2022", "DOM", "DOM.Iterable"], types: ["vite/client"],
+  },
+  include: ["src"],
+});
 
 /**
  * Builds a file set with `vite build` in a throwaway directory and copies the
@@ -64,10 +82,52 @@ export async function buildProject(files: Files, outDir: string, timeoutMs = 60_
     await fs.rm(outDir, { recursive: true, force: true });
     await fs.mkdir(path.dirname(outDir), { recursive: true });
     await fs.cp(dist, outDir, { recursive: true });
-    return { ok: true, log, ms: Date.now() - started };
+    const typeErrors = await typecheck(files, src, timeoutMs);
+    return { ok: true, log, ms: Date.now() - started, ...(typeErrors ? { typeErrors } : {}) };
   } finally {
     await fs.rm(work, { recursive: true, force: true });
   }
+}
+
+/**
+ * `tsc --noEmit` over the project. tsc is a native binary that can't run under
+ * node's permission model, so what it may read is limited another way: every
+ * import and reference must stay inside the project (or be a package), and only
+ * diagnostics for project files are reported.
+ */
+export async function typecheck(files: Files, root: string, timeoutMs = 30_000): Promise<string | undefined> {
+  const escapes = importsOutside(files);
+  if (escapes.length) return escapes.join("\n");
+  await fs.writeFile(path.join(root, "tsconfig.json"), TSCONFIG);
+  const { code, output, timedOut } = await run(process.execPath, [TSC, "-p", ".", "--pretty", "false"], root, timeoutMs);
+  if (timedOut) return `Type check timed out after ${timeoutMs / 1000}s`;
+  if (code === 0) return undefined;
+  const lines: string[] = [];
+  let keep = false;
+  for (const line of output.split("\n")) {
+    if (/^\S/.test(line)) keep = /^src\/[^()]+\(\d+,\d+\): error TS\d+/.test(line) && !line.includes("../");
+    if (keep && line.trim()) lines.push(line.trimEnd());
+  }
+  return lines.length ? clean(lines.join("\n"), root) : `Type check failed (exit ${code})`;
+}
+
+// Module specifiers in imports, exports, require(), import() and triple-slash path references.
+const SPECIFIER = /(?:\bfrom|\bimport|\brequire\s*\(|\bimport\s*\(|<reference\s+path\s*=)\s*["'`]([^"'`\n]+)["'`]/g;
+
+export function importsOutside(files: Files): string[] {
+  const out: string[] = [];
+  for (const [file, content] of Object.entries(files)) {
+    if (!/\.(tsx?|jsx?)$/.test(file)) continue;
+    for (const [, spec] of content.matchAll(SPECIFIER)) {
+      const local = spec.startsWith(".") || spec.startsWith("/") || /^[a-zA-Z]:/.test(spec);
+      if (!local) continue;
+      const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), spec));
+      if (spec.startsWith("/") || /^[a-zA-Z]:/.test(spec) || target.startsWith("../") || target === "..") {
+        out.push(`${file}: import "${spec}" must be a relative path inside the project`);
+      }
+    }
+  }
+  return out;
 }
 
 function run(cmd: string, args: string[], cwd: string, timeoutMs: number) {

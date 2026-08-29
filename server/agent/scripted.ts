@@ -211,6 +211,16 @@ export function planScript(prompt: string, files: Files): Script {
 // "simulate a build error" exercises the auto-fix loop offline: the first write
 // ships a syntax error, and the fix arrives after Kiln reports the failed build.
 function withSimulatedFailure(prompt: string, script: Script, files: Files): Script {
+  if (/simulate a type error/i.test(prompt)) {
+    // Bundles fine (Vite strips types) but fails tsc, so only the type check catches it.
+    const path = "src/lib/format.ts";
+    const ok = `export const formatCount = (n: number): string => n.toLocaleString("en-US");\n`;
+    return {
+      ...script,
+      ops: [...script.ops, { tool: "write_file", path, content: `export const formatCount = (n: number): string => n;\n` }],
+      fix: [{ tool: "write_file", path, content: ok }],
+    };
+  }
   if (!/simulate a build error/i.test(prompt)) return script;
   const good = script.ops.find((o) => o.tool === "write_file" && o.path === "src/App.tsx") as Extract<Op, { tool: "write_file" }> | undefined;
   const base = good?.content ?? files["src/App.tsx"] ?? "";
@@ -245,10 +255,12 @@ export class ScriptedDriver implements Driver {
 
   async next(messages: Anthropic.MessageParam[], onText: (d: string) => void) {
     const last = messages[messages.length - 1];
-    const buildFailed = typeof last.content === "string" && last.content.startsWith("The build failed");
+    const buildFailed = typeof last.content === "string" && last.content.startsWith("The build");
     if (buildFailed && this.script.fix && !this.fixed) {
       this.fixed = true;
-      const text = "The build caught a stray <div> in App.tsx. Removing it.";
+      const text = String(last.content).includes("TypeScript")
+        ? "TypeScript caught formatCount returning a number. Converting it to a string."
+        : "The build caught a stray <div> in App.tsx. Removing it.";
       await this.say(text, onText);
       return { content: [{ type: "text" as const, text }, ...this.script.fix.map(toolUse)], stop_reason: "tool_use" };
     }

@@ -7,7 +7,7 @@ export type AgentEvent =
   | { type: "plan"; steps: string[] }
   | { type: "text"; delta: string }
   | { type: "tool"; name: string; path?: string; ok: boolean; error?: string }
-  | { type: "build"; phase: "start" | "ok" | "fail"; attempt: number; log?: string; ms?: number }
+  | { type: "build"; phase: "start" | "ok" | "fail"; attempt: number; log?: string; ms?: number; typeErrors?: string }
   | { type: "version"; seq: number; summary: string; buildOk: boolean }
   | { type: "done"; message: string }
   | { type: "error"; message: string };

@@ -37,9 +37,15 @@ function ActivityLog({ a, live }: { a: Activity; live: boolean }) {
         </ul>
       )}
       {a.builds.map((b, i) => (
-        <div key={i} className={`build build-${b.phase}`}>
+        <div key={i} className={`build build-${b.phase === "ok" && b.typeErrors ? "warn" : b.phase}`}>
           {b.phase === "start" && <span>Building{b.attempt > 0 ? ` (fix ${b.attempt})` : ""}</span>}
-          {b.phase === "ok" && <span>Build passed in {((b.ms ?? 0) / 1000).toFixed(1)}s</span>}
+          {b.phase === "ok" && !b.typeErrors && <span>Build passed in {((b.ms ?? 0) / 1000).toFixed(1)}s</span>}
+          {b.phase === "ok" && b.typeErrors && (
+            <details>
+              <summary>Built, with type errors{b.attempt > 0 ? ` (fix ${b.attempt})` : ""}</summary>
+              <pre>{b.typeErrors}</pre>
+            </details>
+          )}
           {b.phase === "fail" && (
             <details>
               <summary>Build failed{b.attempt > 0 ? ` (fix ${b.attempt})` : ""}</summary>

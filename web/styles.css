@@ -136,6 +136,8 @@ code, pre { font-family: var(--mono); font-size: 12.5px; }
 @keyframes ember-dot { 50% { opacity: 0.3; } }
 .build-ok { background: #dce9e2; color: #2d5847; }
 .build-fail { background: #f3dcd8; color: var(--crackle); }
+.build-warn { background: #f7e6c6; color: #6b4a12; }
+.build-warn pre { white-space: pre-wrap; font-weight: 400; color: var(--ink); max-height: 200px; overflow: auto; }
 .build-fail pre { white-space: pre-wrap; font-weight: 400; color: var(--ink); max-height: 200px; overflow: auto; }
 .live-text { color: var(--ink); }
 
