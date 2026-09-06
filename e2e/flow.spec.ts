@@ -50,3 +50,18 @@ test("starter templates open with a built preview", async ({ page }) => {
   await page.getByRole("button", { name: /Dashboard/ }).click();
   await expect(page.frameLocator('iframe[title^="Preview"]').getByText("Recent orders")).toBeVisible();
 });
+
+test("runtime errors in the preview are reported and fixed in one click", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("#prompt-home").fill("A landing page for a bakery, simulate a runtime error");
+  await page.getByRole("button", { name: "Build site" }).click();
+  await expect(page.getByText("Build passed")).toBeVisible();
+
+  const alert = page.getByRole("alert").filter({ hasText: "The page threw an error" });
+  await expect(alert).toContainText("Cannot read properties of undefined (reading 'length')");
+  await alert.getByRole("button", { name: "Ask Kiln to fix it" }).click();
+
+  await expect(page.getByRole("button", { name: "View v3" })).toBeVisible();
+  await expect(page.frameLocator('iframe[title^="Preview"]').getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(alert).toHaveCount(0);
+});

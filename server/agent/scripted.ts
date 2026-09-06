@@ -185,6 +185,12 @@ export function planScript(prompt: string, files: Files): Script {
   }
 
   let app = files["src/App.tsx"] ?? "";
+  if (/runtime error/i.test(prompt) && app.includes(RUNTIME_BUG)) {
+    plan.push("Find the render-time crash in src/App.tsx", "Remove the read of an undefined global");
+    ops.push({ tool: "edit_file", path: "src/App.tsx", search: RUNTIME_BUG, replace: "" });
+    app = app.replace(RUNTIME_BUG, "");
+    done.push("removed the read of window.kilnVisits that crashed the first render");
+  }
   for (const [key, s] of Object.entries(SECTIONS)) {
     if (!new RegExp(key.replace(/s$/, ""), "i").test(prompt) || files[s.file]) continue;
     plan.push(`Add a ${key} section`);
@@ -208,9 +214,19 @@ export function planScript(prompt: string, files: Files): Script {
   return withSimulatedFailure(prompt, { plan, ops, summary }, files);
 }
 
-// "simulate a build error" exercises the auto-fix loop offline: the first write
-// ships a syntax error, and the fix arrives after Kiln reports the failed build.
+// Builds and type-checks, then throws on first render inside the preview.
+const RUNTIME_BUG = "  const visits = (window as unknown as { kilnVisits: number[] }).kilnVisits.length; // simulated runtime error\n";
+const APP_START = "export default function App() {\n";
+
 function withSimulatedFailure(prompt: string, script: Script, files: Files): Script {
+  if (/simulate a runtime error/i.test(prompt)) {
+    const ops = script.ops.map((o) =>
+      o.tool === "write_file" && o.path === "src/App.tsx" ? { ...o, content: o.content.replace(APP_START, APP_START + RUNTIME_BUG) } : o);
+    if (!script.ops.some((o) => o.path === "src/App.tsx") && files["src/App.tsx"]?.includes(APP_START)) {
+      ops.push({ tool: "edit_file", path: "src/App.tsx", search: APP_START, replace: APP_START + RUNTIME_BUG });
+    }
+    return { ...script, ops };
+  }
   if (/simulate a type error/i.test(prompt)) {
     // Bundles fine (Vite strips types) but fails tsc, so only the type check catches it.
     const path = "src/lib/format.ts";
@@ -221,6 +237,8 @@ function withSimulatedFailure(prompt: string, script: Script, files: Files): Scr
       fix: [{ tool: "write_file", path, content: ok }],
     };
   }
+  // "simulate a build error" exercises the auto-fix loop offline: the first write
+  // ships a syntax error, and the fix arrives after Kiln reports the failed build.
   if (!/simulate a build error/i.test(prompt)) return script;
   const good = script.ops.find((o) => o.tool === "write_file" && o.path === "src/App.tsx") as Extract<Op, { tool: "write_file" }> | undefined;
   const base = good?.content ?? files["src/App.tsx"] ?? "";
