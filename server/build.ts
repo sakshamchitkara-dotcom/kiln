@@ -12,6 +12,7 @@ const REPO = path.resolve(HERE, "..");
 const NODE_MODULES = path.join(REPO, "node_modules");
 const WORKER = path.join(HERE, "build-worker.mjs");
 const TSC = path.join(NODE_MODULES, "typescript", "bin", "tsc");
+const REAL_NODE_MODULES = realpathSync(NODE_MODULES);
 const TMP = realpathSync(os.tmpdir());
 const MAX_LOG = 8_000;
 
@@ -65,7 +66,7 @@ export async function buildProject(files: Files, outDir: string, timeoutMs = 60_
         "--permission",
         "--no-warnings",
         `--allow-fs-read=${work}`,
-        `--allow-fs-read=${realpathSync(NODE_MODULES)}`,
+        `--allow-fs-read=${REAL_NODE_MODULES}`,
         `--allow-fs-read=${WORKER}`,
         `--allow-fs-write=${work}`,
         "--allow-addons", // rolldown, lightningcss and tailwind oxide are native addons
@@ -82,7 +83,7 @@ export async function buildProject(files: Files, outDir: string, timeoutMs = 60_
     await fs.rm(outDir, { recursive: true, force: true });
     await fs.mkdir(path.dirname(outDir), { recursive: true });
     await fs.cp(dist, outDir, { recursive: true });
-    const typeErrors = await typecheck(files, src, timeoutMs);
+    const typeErrors = await typecheck(src, timeoutMs);
     return { ok: true, log, ms: Date.now() - started, ...(typeErrors ? { typeErrors } : {}) };
   } finally {
     await fs.rm(work, { recursive: true, force: true });
@@ -91,15 +92,22 @@ export async function buildProject(files: Files, outDir: string, timeoutMs = 60_
 
 /**
  * `tsc --noEmit` over the project. tsc is a native binary that can't run under
- * node's permission model, so what it may read is limited another way: every
- * import and reference must stay inside the project (or be a package), and only
+ * node's permission model, so what it may read is checked with tsc itself: it
+ * first lists every file in the program (after resolving imports, type-only
+ * imports, escapes in specifiers, triple-slash references), and the check only
+ * runs if all of them are project files or installed packages. Only
  * diagnostics for project files are reported.
  */
-export async function typecheck(files: Files, root: string, timeoutMs = 30_000): Promise<string | undefined> {
-  const escapes = importsOutside(files);
-  if (escapes.length) return escapes.join("\n");
+export async function typecheck(root: string, timeoutMs = 30_000): Promise<string | undefined> {
   await fs.writeFile(path.join(root, "tsconfig.json"), TSCONFIG);
-  const { code, output, timedOut } = await run(process.execPath, [TSC, "-p", ".", "--pretty", "false"], root, timeoutMs);
+  const tsc = (...flags: string[]) => run(process.execPath, [TSC, "-p", ".", "--pretty", "false", ...flags], root, timeoutMs);
+
+  const listed = await tsc("--listFilesOnly");
+  if (listed.timedOut) return `Type check timed out after ${timeoutMs / 1000}s`;
+  const outside = listed.output.split("\n").map((l) => l.trim()).filter((l) => l && !insideAllowed(path.resolve(root, l), root));
+  if (outside.length) return `The project references ${outside.length} file(s) outside the project. Imports and references must be relative paths inside the project or package names.`;
+
+  const { code, output, timedOut } = await tsc();
   if (timedOut) return `Type check timed out after ${timeoutMs / 1000}s`;
   if (code === 0) return undefined;
   const lines: string[] = [];
@@ -111,23 +119,8 @@ export async function typecheck(files: Files, root: string, timeoutMs = 30_000):
   return lines.length ? clean(lines.join("\n"), root) : `Type check failed (exit ${code})`;
 }
 
-// Module specifiers in imports, exports, require(), import() and triple-slash path references.
-const SPECIFIER = /(?:\bfrom|\bimport|\brequire\s*\(|\bimport\s*\(|<reference\s+path\s*=)\s*["'`]([^"'`\n]+)["'`]/g;
-
-export function importsOutside(files: Files): string[] {
-  const out: string[] = [];
-  for (const [file, content] of Object.entries(files)) {
-    if (!/\.(tsx?|jsx?)$/.test(file)) continue;
-    for (const [, spec] of content.matchAll(SPECIFIER)) {
-      const local = spec.startsWith(".") || spec.startsWith("/") || /^[a-zA-Z]:/.test(spec);
-      if (!local) continue;
-      const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), spec));
-      if (spec.startsWith("/") || /^[a-zA-Z]:/.test(spec) || target.startsWith("../") || target === "..") {
-        out.push(`${file}: import "${spec}" must be a relative path inside the project`);
-      }
-    }
-  }
-  return out;
+function insideAllowed(file: string, root: string) {
+  return [root, NODE_MODULES, REAL_NODE_MODULES].some((dir) => file.startsWith(dir + path.sep));
 }
 
 function run(cmd: string, args: string[], cwd: string, timeoutMs: number) {

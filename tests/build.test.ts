@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { buildProject, importsOutside } from "../server/build.ts";
+import { buildProject } from "../server/build.ts";
 import { BASE_FILES } from "../server/scaffold.ts";
 
 const out = await fs.mkdtemp(path.join(os.tmpdir(), "kiln-test-out-"));
@@ -68,12 +68,23 @@ describe("buildProject", { timeout: 30_000 }, () => {
     expect(r.typeErrors).not.toContain(os.tmpdir());
   });
 
-  it("refuses to type-check imports that leave the project", async () => {
-    // Type-only imports are erased before Vite's import guard sees them.
-    const r = await buildProject(withApp(`import type { X } from "../../secret";\nexport default () => null;`), path.join(out, "tc-esc"));
-    expect(r.typeErrors).toContain('import "../../secret" must be a relative path inside the project');
-    expect(importsOutside({ "src/a.ts": `/// <reference path="/etc/x.d.ts" />\nimport "./b"; import("../src/c");` }))
-      .toEqual(['src/a.ts: import "/etc/x.d.ts" must be a relative path inside the project']);
+  it("refuses to type-check projects that pull in files from outside", async () => {
+    // Type-only imports are erased before Vite's import guard sees them, and
+    // escapes or comments in the specifier must not hide where it points.
+    const secret = path.join(out, "secret.ts");
+    await fs.writeFile(secret, 'export type Secret = "sk-live-4242";\n');
+    const escaped = secret.replace(/\//g, "\\x2f");
+    for (const [name, spec] of [["plain", secret], ["escaped", escaped]]) {
+      const r = await buildProject(
+        withApp(`import type { Secret } from /* x */ "${spec}";\nconst s: number = "" as Secret;\nexport default () => <p>{s}</p>;`),
+        path.join(out, `tc-${name}`),
+      );
+      expect(r.ok, r.log).toBe(true);
+      expect(r.typeErrors).toContain("outside the project");
+      expect(r.typeErrors).not.toContain("sk-live-4242");
+    }
+    const ref = await buildProject(withApp(`/// <reference path="${secret}" />\nexport default () => null;`), path.join(out, "tc-ref"));
+    expect(ref.typeErrors).toContain("outside the project");
   });
 
   it("kills builds that exceed the timeout", async () => {
