@@ -26,6 +26,8 @@ With a key, requests go to `claude-opus-5-5` (override with `KILN_MODEL`).
 
 Production: `npm run build && npm start` serves the UI and API on one port.
 
+Kiln has no login, so the server only listens on `127.0.0.1`. Set `KILN_HOST=0.0.0.0` to expose it on your network, and only do that on a network you trust.
+
 ## What it does
 
 | | |
