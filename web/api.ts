@@ -21,7 +21,7 @@ async function req<T>(url: string, init?: RequestInit): Promise<T> {
 export const api = {
   config: () => req<Config>("/api/config"),
   projects: () => req<Project[]>("/api/projects"),
-  create: (body: { name?: string; template?: string }) => req<Project>("/api/projects", { method: "POST", body: JSON.stringify(body) }),
+  create: (body: { name?: string; template?: string; prompt?: string }) => req<Project>("/api/projects", { method: "POST", body: JSON.stringify(body) }),
   project: (id: string) => req<ProjectDetail>(`/api/projects/${id}`),
   rename: (id: string, name: string) => req<Project>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
   remove: (id: string) => req<void>(`/api/projects/${id}`, { method: "DELETE" }),

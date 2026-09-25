@@ -62,3 +62,10 @@ describe("HTTP API (scripted mode)", { timeout: 30_000 }, () => {
     expect((await app.request(`/preview/${p.id}/1/`)).status).toBe(200);
   });
 });
+
+describe("project naming", () => {
+  it("names a project from the prompt it was started with", async () => {
+    const p = await (await app.request("/api/projects", json("POST", { prompt: "a blog named Field Notes, about birds" }))).json();
+    expect(p.name).toBe("Field Notes");
+  });
+});

@@ -16,12 +16,12 @@ export default function Home({ config, onOpen }: { config: Config | null; onOpen
 
   useEffect(() => { api.projects().then(setProjects).catch(() => {}); }, []);
 
-  async function start(body: { name?: string; template?: string }, prompt?: string) {
+  async function start(body: { template?: string; prompt?: string }) {
     setBusy(true);
     setError(null);
     try {
       const p = await api.create(body);
-      onOpen(p.id, prompt);
+      onOpen(p.id, body.prompt);
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -42,12 +42,12 @@ export default function Home({ config, onOpen }: { config: Config | null; onOpen
           disabled={busy}
           placeholder="A one-page site for a ceramics studio with class schedules and a booking form"
           submitLabel="Build site"
-          onSubmit={(prompt) => start({ name: prompt.match(/called\s+"?([^",.]+)/i)?.[1] ?? "Untitled site" }, prompt)}
+          onSubmit={(prompt) => start({ prompt })}
         />
         {error && <p className="error" role="alert">{error}</p>}
         <div className="examples" aria-label="Example prompts">
           {EXAMPLES.map((e) => (
-            <button key={e} className="chip" disabled={busy} onClick={() => start({ name: e.match(/"([^"]+)"|named (\w+ \w+)/)?.slice(1).find(Boolean) ?? "Untitled site" }, e)}>
+            <button key={e} className="chip" disabled={busy} onClick={() => start({ prompt: e })}>
               {e}
             </button>
           ))}
