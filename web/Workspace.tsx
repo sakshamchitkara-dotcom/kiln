@@ -126,7 +126,7 @@ export default function Workspace({ id, config, initialPrompt, onHome }: { id: s
           </div>
         </div>
         <div className="stage-body">
-          {tab === "preview" && <Preview projectId={id} version={viewed} />}
+          {tab === "preview" && <Preview projectId={id} version={viewed} onFix={send} busy={building} />}
           {tab === "code" && <Suspense fallback={<div className="center-note">Loading editor</div>}><CodeView projectId={id} seq={viewed.seq} /></Suspense>}
           {tab === "changes" && <DiffView projectId={id} seq={viewed.seq} />}
         </div>

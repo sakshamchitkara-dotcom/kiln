@@ -146,13 +146,15 @@ code, pre { font-family: var(--mono); font-size: 12.5px; }
 .stage-body { min-height: 0; overflow: hidden; }
 .center-note { height: 100%; display: grid; place-content: center; justify-items: center; gap: 12px; color: var(--ink-soft); }
 
-.preview { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.preview { height: 100%; display: flex; flex-direction: column; }
 .preview-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; }
 .segmented { display: inline-flex; border: 1px solid var(--slip); border-radius: var(--r-sm); overflow: hidden; background: var(--white); }
 .segmented button { border: 0; background: none; padding: 4px 12px; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
 .segmented button + button { border-left: 1px solid var(--slip); }
 .segmented button[aria-pressed="true"] { background: var(--bisque); color: var(--ink); }
-.preview-shelf { padding: 0 16px 16px; display: flex; justify-content: center; min-height: 0; }
+.runtime-error { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin: 0 16px 10px; padding: 8px 12px; border-radius: var(--r-sm); background: #f3dcd8; color: var(--crackle); }
+.runtime-error code { color: var(--ink); }
+.preview-shelf { flex: 1; padding: 0 16px 16px; display: flex; justify-content: center; min-height: 0; }
 .preview-shelf iframe { height: 100%; max-width: 100%; border: 1px solid var(--slip); border-radius: var(--r-sm); background: #fff; transition: width 0.25s ease; }
 .build-broken { align-self: start; max-width: 720px; width: 100%; background: var(--white); border: 1px solid var(--slip); border-radius: var(--r-lg); padding: 24px; }
 .build-broken h2 { margin: 0; color: var(--crackle); }
