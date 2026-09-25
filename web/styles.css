@@ -99,7 +99,10 @@ code, pre { font-family: var(--mono); font-size: 12.5px; }
 .template-dashboard { --g: radial-gradient(circle at 70% 30%, #b7d2c5, var(--celadon-deep) 75%); }
 .template-blog { --g: radial-gradient(circle at 40% 70%, #f1c98a, #b5652e 80%); }
 .project-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--slip); }
-.project-list a { display: flex; justify-content: space-between; gap: 16px; padding: 12px 2px; border-bottom: 1px solid var(--slip); text-decoration: none; color: inherit; }
+.project-list li { display: flex; align-items: center; border-bottom: 1px solid var(--slip); }
+.project-list a { flex: 1; display: flex; justify-content: space-between; gap: 16px; padding: 12px 2px; text-decoration: none; color: inherit; }
+.project-delete { color: var(--ink-soft); margin-left: 12px; }
+.project-delete:hover { color: var(--crackle); }
 .project-list a:hover .project-name { color: var(--cobalt); }
 .project-name { font-weight: 700; }
 .project-meta { color: var(--ink-soft); font-size: 13.5px; }

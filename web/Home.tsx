@@ -28,6 +28,12 @@ export default function Home({ config, onOpen }: { config: Config | null; onOpen
     }
   }
 
+  async function remove(p: Project) {
+    if (!confirm(`Delete ${p.name} and all its versions? This can't be undone.`)) return;
+    await api.remove(p.id);
+    setProjects((list) => list.filter((x) => x.id !== p.id));
+  }
+
   return (
     <div className="home">
       <header className="home-top">
@@ -76,6 +82,7 @@ export default function Home({ config, onOpen }: { config: Config | null; onOpen
                     <span className="project-name">{p.name}</span>
                     <span className="project-meta">{p.head} {p.head === 1 ? "version" : "versions"}, started {new Date(p.createdAt).toLocaleDateString()}</span>
                   </a>
+                  <button className="link-btn project-delete" aria-label={`Delete ${p.name}`} onClick={() => remove(p)}>Delete</button>
                 </li>
               ))}
             </ul>
