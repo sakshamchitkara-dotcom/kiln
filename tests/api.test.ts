@@ -9,7 +9,7 @@ const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "kiln-api-"));
 afterAll(() => fs.rm(dataDir, { recursive: true, force: true }));
 const { app } = createApp({ dataDir, scripted: true, model: "scripted" });
 
-const json = (method: string, body?: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
+const json = (method: string, body?: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
 
 async function chat(id: string, prompt: string) {
   const res = await app.request(`/api/projects/${id}/chat`, json("POST", { prompt }));
