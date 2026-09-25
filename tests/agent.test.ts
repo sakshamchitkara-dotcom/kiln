@@ -69,6 +69,16 @@ describe("runTurn with the scripted driver", { timeout: 30_000 }, () => {
     expect(result.files["src/lib/format.ts"]).toContain("toLocaleString");
   });
 
+  it("simulates a render-time crash and fixes it from the runtime error report", async () => {
+    const first = await turn("a landing page, simulate a runtime error");
+    expect(first.result.build.ok).toBe(true);
+    expect(first.result.build.typeErrors).toBeUndefined(); // only the browser can catch this one
+    expect(first.result.files["src/App.tsx"]).toContain(".kilnVisits.length");
+    const { result } = await turn("The preview throws a runtime error: Cannot read properties of undefined (reading 'length'). Find the cause and fix it.", first.result.files);
+    expect(result.changed).toBe(true);
+    expect(result.files["src/App.tsx"]).not.toContain("kilnVisits");
+  });
+
   it("reports no change when the request is not understood", async () => {
     const first = await turn("a landing page");
     const { result } = await turn("translate everything to Klingon", first.result.files);
