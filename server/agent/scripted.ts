@@ -190,7 +190,7 @@ export function planScript(prompt: string, files: Files): Script {
     plan.push(`Add a ${key} section`);
     ops.push({ tool: "write_file", path: s.file, content: s.code });
     const withImport = `import ${s.component} from "./components/${s.component}";\n` + app;
-    const next = withImport.replace("</main>", `  <${s.component} />\n        </main>`);
+    const next = withImport.replace(/\n(\s*)<\/main>/, (_, indent) => `\n${indent}  <${s.component} />\n${indent}</main>`);
     ops.push({ tool: "edit_file", path: "src/App.tsx", search: app, replace: next });
     app = next;
     done.push(`added a ${key} section`);
