@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
@@ -34,11 +35,22 @@ const MIME: Record<string, string> = {
   ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg", ".ico": "image/x-icon", ".woff2": "font/woff2", ".txt": "text/plain",
 };
 
+/** Remove half-written build output left by a crash or restart mid-turn. */
+function sweepStaging(previews: string) {
+  for (const project of readdirSafe(previews)) {
+    for (const entry of readdirSafe(path.join(previews, project))) {
+      if (entry.startsWith("staging-")) rmSync(path.join(previews, project, entry), { recursive: true, force: true });
+    }
+  }
+}
+const readdirSafe = (dir: string) => { try { return readdirSync(dir); } catch { return []; } };
+
 export function createApp(cfg: AppConfig) {
   const store = new Store(path.join(cfg.dataDir, "kiln.db"));
   const previews = path.join(cfg.dataDir, "previews");
   const busy = new Set<string>();
   const app = new Hono();
+  sweepStaging(previews);
 
   const previewDir = (id: string, seq: number | string) => path.join(previews, id, String(seq));
   const driverFor = cfg.makeDriver ?? ((prompt: string, files: Files) =>
