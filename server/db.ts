@@ -71,11 +71,12 @@ export class Store {
   }
 
   /** Snapshot a full file set as the project's next version and move head to it. */
-  addVersion(projectId: string, files: Files, summary: string, build: { ok: boolean; log: string }): number {
+  addVersion(projectId: string, files: Files, summary: string, build: { ok: boolean; log: string; typeErrors?: string }): number {
     const seq = ((this.db.prepare("SELECT MAX(seq) AS m FROM versions WHERE project_id = ?").get(projectId) as Row).m ?? 0) + 1;
     this.db
       .prepare("INSERT INTO versions (project_id, seq, files, summary, build_ok, build_log) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(projectId, seq, JSON.stringify(files), summary, build.ok ? 1 : 0, build.log);
+      .run(projectId, seq, JSON.stringify(files), summary, build.ok ? 1 : 0,
+        build.typeErrors ? `${build.log}\n\nType errors:\n${build.typeErrors}`.trim() : build.log);
     this.db.prepare("UPDATE projects SET head = ? WHERE id = ?").run(seq, projectId);
     return seq;
   }

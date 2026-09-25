@@ -61,6 +61,14 @@ describe("runTurn with the scripted driver", { timeout: 30_000 }, () => {
     expect(result.build.ok).toBe(true);
   });
 
+  it("feeds type errors back even though the bundle built", async () => {
+    const { result, events } = await turn("a landing page, simulate a type error");
+    const builds = events.filter((e) => e.type === "build" && e.phase !== "start");
+    expect(builds.map((e) => e.type === "build" && !!e.typeErrors)).toEqual([true, false]);
+    expect(result.build.typeErrors).toBeUndefined();
+    expect(result.files["src/lib/format.ts"]).toContain("toLocaleString");
+  });
+
   it("reports no change when the request is not understood", async () => {
     const first = await turn("a landing page");
     const { result } = await turn("translate everything to Klingon", first.result.files);

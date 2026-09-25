@@ -190,7 +190,9 @@ export function createApp(cfg: AppConfig) {
           emit({ type: "version", seq, summary: title, buildOk: result.build.ok });
         }
         const reply = result.summary || (result.changed ? "Done." : "No changes.");
-        store.addMessage(id, "assistant", result.build.ok || !result.changed ? reply : `${reply}\n\nThe build still fails; see the build log.`, seq);
+        const note = !result.changed ? "" : !result.build.ok ? "\n\nThe build still fails; see the build log."
+          : result.build.typeErrors ? "\n\nTypeScript still reports errors; the site runs, but see the build log." : "";
+        store.addMessage(id, "assistant", reply + note, seq);
         emit({ type: "done", message: reply });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { buildProject } from "../server/build.ts";
+import { buildProject, importsOutside } from "../server/build.ts";
 import { BASE_FILES } from "../server/scaffold.ts";
 
 const out = await fs.mkdtemp(path.join(os.tmpdir(), "kiln-test-out-"));
@@ -57,6 +57,23 @@ describe("buildProject", { timeout: 30_000 }, () => {
     // macOS surfaces the permission error; on Linux the resolver just can't see the file.
     expect(r.log).toMatch(/Access to this API has been restricted|Can't resolve/);
     expect(r.log).not.toContain(".leak");
+  });
+
+  it("type-checks code that bundles fine and reports only project diagnostics", async () => {
+    const clean = await buildProject(BASE_FILES, path.join(out, "tc-ok"));
+    expect(clean.typeErrors).toBeUndefined();
+    const r = await buildProject(withApp(`const n: number = "three";\nexport default () => <p>{n}</p>;`), path.join(out, "tc"));
+    expect(r.ok).toBe(true); // Vite strips types, so the preview still builds
+    expect(r.typeErrors).toMatch(/^src\/App\.tsx\(1,7\): error TS2322/);
+    expect(r.typeErrors).not.toContain(os.tmpdir());
+  });
+
+  it("refuses to type-check imports that leave the project", async () => {
+    // Type-only imports are erased before Vite's import guard sees them.
+    const r = await buildProject(withApp(`import type { X } from "../../secret";\nexport default () => null;`), path.join(out, "tc-esc"));
+    expect(r.typeErrors).toContain('import "../../secret" must be a relative path inside the project');
+    expect(importsOutside({ "src/a.ts": `/// <reference path="/etc/x.d.ts" />\nimport "./b"; import("../src/c");` }))
+      .toEqual(['src/a.ts: import "/etc/x.d.ts" must be a relative path inside the project']);
   });
 
   it("kills builds that exceed the timeout", async () => {

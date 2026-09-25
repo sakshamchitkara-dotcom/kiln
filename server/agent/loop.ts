@@ -48,6 +48,9 @@ export function contextMessage(prompt: string, files: Files, history: Message[])
 export const buildFailureMessage = (log: string) =>
   `The build failed:\n\n${log}\n\nFix the cause with the file tools. Only ${ALLOWED_PACKAGES.join(", ")} can be imported.`;
 
+export const typeErrorMessage = (errors: string) =>
+  `The build passed, but TypeScript reports errors:\n\n${errors}\n\nFix them with the file tools without changing behaviour.`;
+
 /**
  * Runs the model's tool loop against a VFS, then validates with a real build.
  * Build errors go back to the model as a new user message (append-only, so
@@ -68,10 +71,10 @@ export async function runTurn(t: TurnInput): Promise<TurnResult> {
 
     t.emit({ type: "build", phase: "start", attempt });
     build = await t.build(vfs.snapshot());
-    t.emit({ type: "build", phase: build.ok ? "ok" : "fail", attempt, log: build.log, ms: build.ms });
-    if (build.ok || attempt === maxFixes) break;
-    t.emit({ type: "status", message: `Build failed, asking for a fix (${attempt + 1}/${maxFixes})` });
-    messages.push({ role: "user", content: buildFailureMessage(build.log) });
+    t.emit({ type: "build", phase: build.ok ? "ok" : "fail", attempt, log: build.log, ms: build.ms, typeErrors: build.typeErrors });
+    if ((build.ok && !build.typeErrors) || attempt === maxFixes) break;
+    t.emit({ type: "status", message: `${build.ok ? "Type errors" : "Build failed"}, asking for a fix (${attempt + 1}/${maxFixes})` });
+    messages.push({ role: "user", content: build.ok ? typeErrorMessage(build.typeErrors!) : buildFailureMessage(build.log) });
   }
   return { files: vfs.snapshot(), build, summary, changed: true };
 }
