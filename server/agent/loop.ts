@@ -7,7 +7,7 @@ import { executeTool, type Emit } from "./tools.ts";
 
 /** One assistant turn. Implemented by Claude and by the offline scripted generator. */
 export interface Driver {
-  next(messages: Anthropic.MessageParam[], onText: (delta: string) => void): Promise<{
+  next(messages: Anthropic.MessageParam[], onText: (delta: string) => void, onToolStart?: (name: string) => void): Promise<{
     content: Anthropic.ContentBlockParam[];
     stop_reason: string | null;
   }>;
@@ -27,6 +27,10 @@ export interface TurnInput {
 export interface TurnResult { files: Files; build: BuildResult; summary: string; changed: boolean }
 
 const INLINE_LIMIT = 80_000;
+const TOOL_STATUS: Record<string, string> = {
+  plan: "Planning", write_file: "Writing a file", edit_file: "Editing a file",
+  read_file: "Reading a file", delete_file: "Deleting a file", list_files: "Listing files",
+};
 
 export function contextMessage(prompt: string, files: Files, history: Message[]): string {
   const recent = history.slice(-10).map((m) => `${m.role === "user" ? "User" : "You"}: ${m.content}`).join("\n\n");
@@ -80,7 +84,7 @@ async function toolLoop(t: TurnInput, vfs: Vfs, messages: Anthropic.MessageParam
       if (!stepText && text) t.emit({ type: "text", delta: "\n\n" }); // separate text from earlier steps
       stepText += d;
       t.emit({ type: "text", delta: d });
-    });
+    }, (name) => t.emit({ type: "status", message: TOOL_STATUS[name] ?? `Running ${name}` }));
     if (stepText) text = stepText;
     messages.push({ role: "assistant", content: res.content });
 

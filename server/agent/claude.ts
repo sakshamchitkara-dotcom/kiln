@@ -31,7 +31,7 @@ export class ClaudeDriver implements Driver {
     this.client = client ?? new Anthropic();
   }
 
-  async next(messages: Anthropic.MessageParam[], onText: (d: string) => void) {
+  async next(messages: Anthropic.MessageParam[], onText: (d: string) => void, onToolStart?: (name: string) => void) {
     let jsonRetries = 0;
     for (;;) {
       const stream = this.client.messages.stream({
@@ -45,6 +45,10 @@ export class ClaudeDriver implements Driver {
         messages,
       });
       stream.on("text", onText);
+      // Big write_file inputs take a while to stream; say what is happening.
+      stream.on("streamEvent", (ev) => {
+        if (ev.type === "content_block_start" && ev.content_block.type === "tool_use") onToolStart?.(ev.content_block.name);
+      });
       try {
         const msg = await stream.finalMessage();
         return { content: msg.content as Anthropic.ContentBlockParam[], stop_reason: msg.stop_reason };
