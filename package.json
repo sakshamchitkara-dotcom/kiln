@@ -1,6 +1,6 @@
 {
   "name": "kiln",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Prompt in, website out: Claude writes a React + Vite + Tailwind project, Kiln builds it, previews it and keeps every version.",
   "type": "module",

@@ -19,6 +19,8 @@ Without `ANTHROPIC_API_KEY` (or with `KILN_SCRIPTED=true`) Kiln starts in **offl
 - new sites: "a landing page called "Crumb" for a bakery, green accent", "an analytics dashboard…", "a blog named Field Notes, dark theme"
 - edits: "make it purple", "dark mode", `set the headline to "…"`, `rename to "…"`, "add testimonials / pricing / FAQ"
 - "simulate a build error", which writes broken code first so you can watch the auto-fix loop recover
+- "simulate a type error", which bundles fine but fails `tsc`, so the type check sends it back for a fix
+- "simulate a runtime error", which builds but throws in the preview, so you can try "Ask Kiln to fix it"
 
 With a key, requests go to `claude-opus-5-5` (override with `KILN_MODEL`).
 
@@ -30,7 +32,7 @@ Production: `npm run build && npm start` serves the UI and API on one port.
 |---|---|
 | Prompt → project | Claude plans, then uses `write_file` / `edit_file` (search/replace) / `delete_file` / `read_file` / `list_files` on a virtual filesystem |
 | Streaming | Plan, file operations, build status and reply text stream to the chat over SSE |
-| Build check | Every turn is built with `vite build` in an isolated temp dir, with a timeout; failures go back to the model for up to 2 fix attempts |
+| Build check | Every turn is built with `vite build` in an isolated temp dir, with a timeout, then type-checked with strict `tsc --noEmit`; build failures and type errors go back to the model for up to 2 fix attempts |
 | Live preview | The built site in a sandboxed iframe, with desktop / tablet / phone widths and runtime errors reported back with a "Ask Kiln to fix it" button |
 | Versions | One snapshot per turn in sqlite; timeline, per-file diffs, restore (as a new version, so restores are undoable) |
 | Code | File tree and read-only CodeMirror viewer for any version |
@@ -87,6 +89,7 @@ A chat turn:
 - `server/vfs.ts` rejects `..`, absolute paths, hidden files, reserved config files, unknown extensions, files over 200 KB, projects over 2 MB or 150 files.
 - `server/build-worker.mjs` checks where every import actually resolves. Imports that land outside the project (for example `import x from "/etc/hosts?raw"`, which Vite would otherwise inline) and packages outside the allow list (`react`, `react-dom`, `lucide-react`) fail the build with a message the model can act on.
 - The build runs as a separate `node --permission` process: reads limited to its temp dir and `node_modules`, writes to its temp dir, a scrubbed environment (no API keys), and `SIGKILL` after 60 s. Tailwind resolves CSS `@import`s outside Vite's resolver; the permission model is what stops those (see `tests/build.test.ts`).
+- The type check runs the native `tsc` binary, which can't run under the permission model. Instead tsc first lists every file in the program (after it has resolved imports, type-only imports, escaped specifiers and `/// <reference>`s), and the check runs only if all of them are project files or installed packages. `allowJs` and `resolveJsonModule` stay off, and only diagnostics for project files are reported.
 - Previews are served with `Content-Security-Policy: sandbox allow-scripts …` and the iframe has no `allow-same-origin`, so a generated site gets an opaque origin even when opened in its own tab. It can't call Kiln's API or read its storage.
 
 **One agent loop, two drivers.** `Driver.next()` returns one assistant turn. `ClaudeDriver` streams from the Messages API; `ScriptedDriver` returns canned tool calls. Everything else, including the VFS, build, auto-fix, versions and SSE, is shared, which is why the offline mode is a real test of the pipeline.
@@ -114,7 +117,7 @@ e2e/                Playwright flow in scripted mode
 
 ```sh
 npm run typecheck
-npm test            # 47 unit/integration tests, including real sandboxed builds
+npm test            # 51 unit/integration tests, including real sandboxed builds
 npm run test:e2e    # builds the UI, starts the server in scripted mode, drives Chromium
 ```
 
@@ -135,5 +138,4 @@ CI runs all three on every push (`.github/workflows/ci.yml`).
 
 - Deploying to Vercel/Netlify and pushing to GitHub. Export is zip only; the zip is a complete Vite project that deploys anywhere.
 - Editing code by hand in the viewer (read-only).
-- Type checking generated code. `vite build` strips types, so a type error that isn't a syntax error doesn't fail the build.
 - Accounts and multi-user access. Kiln is a single-user local app; don't expose it to the internet as is.
