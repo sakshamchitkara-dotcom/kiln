@@ -54,7 +54,9 @@ describe("buildProject", { timeout: 30_000 }, () => {
     await fs.writeFile(secret, ".leak { color: red }");
     const r = await buildProject({ ...BASE_FILES, "src/index.css": `@import "tailwindcss";\n@import "${secret}";\n` }, path.join(out, "css"));
     expect(r.ok).toBe(false);
-    expect(r.log).toContain("Access to this API has been restricted");
+    // macOS surfaces the permission error; on Linux the resolver just can't see the file.
+    expect(r.log).toMatch(/Access to this API has been restricted|Can't resolve/);
+    expect(r.log).not.toContain(".leak");
   });
 
   it("kills builds that exceed the timeout", async () => {
